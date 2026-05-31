@@ -90,18 +90,18 @@ a:hover {
     text-decoration: underline;
 }
 
-/* Glassmorphism Popup Styles (Fixed Bottom-Left) */
+/* Glassmorphism popup — positioned next to the hovered marker by JS */
 .ol-popup {
     position: absolute;
-    bottom: 20px;
-    left: 20px;
-    background-color: rgba(255, 255, 255, 0.9);
+    top: 0;
+    left: 0;
+    background-color: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(8px);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 8px;
-    padding: 12px;
-    min-width: 220px;
+    padding: 10px 12px;
+    min-width: 200px;
     max-width: 320px;
     font-size: 13px;
     color: #1a1a1a;
@@ -112,16 +112,85 @@ a:hover {
 }
 
 #popup-content {
-    line-height: 1.4;
+    line-height: 1.35;
 }
 
 #popup-content strong {
     color: #0056b3;
 }
 
-#popup-content small {
-    display: block;
-    margin-top: 4px;
+/* Popup lines: a compact, consistent stack with no blank rows */
+.pk-row {
+    color: #1a1a1a;
+}
+
+.pk-sub {
+    color: #5a5a5a;
+    font-size: 11px;
+}
+
+#popup-content > div + div {
+    margin-top: 2px;
+}
+
+/* Logbook Panel */
+#logbook-panel {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40%;
+    background: rgba(20, 20, 30, 0.93);
+    color: #e0e0e0;
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid #444;
+}
+
+#logbook-panel.d-none { display: none !important; }
+
+.logbook-header {
+    background: rgba(0, 0, 0, 0.3);
+    flex-shrink: 0;
+}
+
+.logbook-body {
+    flex: 1;
+    overflow-y: auto;
+}
+
+#logbook-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+#logbook-table th.sortable:hover { background: rgba(255,255,255,0.08); }
+#logbook-table th.sort-asc::after { content: ' ▲'; font-size: 0.7em; }
+#logbook-table th.sort-desc::after { content: ' ▼'; font-size: 0.7em; }
+
+/* Floating options button (visible in hide-max mode) */
+#floating-options {
+    position: absolute;
+    top: 10px;
+    right: 50px; /* leave room for OL zoom controls */
+    z-index: 1001;
+    background: rgba(255,255,255,0.85);
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+#floating-options:hover { background: rgba(255,255,255,1); }
+
+/* Popup callsign links */
+#popup-content a.psk-cs-link {
+    color: #0056b3;
+    text-decoration: underline;
+    cursor: pointer;
 }
 
 /* Map Controls Styling */

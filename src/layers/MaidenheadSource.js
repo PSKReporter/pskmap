@@ -77,12 +77,30 @@ class MaidenheadSource extends ImageCanvasSource {
         canvas.width = size[0];
         canvas.height = size[1];
 
-        // Keep the grid visible up to very high zoom-out levels
-        if (resolution > 150000) return canvas;
+        const isMercator = projection.getCode() === 'EPSG:3857';
+
+        // Keep the grid visible up to very high zoom-out levels. Azimuthal world
+        // views have much larger resolutions, so allow more before bailing out.
+        if (resolution > (isMercator ? 150000 : 400000)) return canvas;
 
         const ctx = canvas.getContext('2d');
         const rp = resolution / pixelRatio;
         const offset = [extent[0] / rp, extent[3] / rp];
+
+        ctx.font = `${pixelRatio * 11}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+        ctx.strokeStyle = 'rgba(120, 120, 120, 0.25)';
+        ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = 1;
+
+        // In an azimuthal projection the visible area is a disc, not a lon/lat
+        // rectangle, so the extent-walking logic below doesn't apply at world
+        // scale. Draw a subdivided global graticule that reprojects naturally.
+        if (!isMercator && resolution >= 100) {
+            this.drawGlobalGraticule(ctx, projection, rp, offset, size, resolution);
+            return canvas;
+        }
 
         const projExtent = projection.getExtent();
         const clippedExtent = extent.slice();
@@ -151,6 +169,60 @@ class MaidenheadSource extends ImageCanvasSource {
         }
 
         return canvas;
+    }
+
+    // Draw a full lon/lat graticule for azimuthal world views. Lines are
+    // subdivided so they follow the projection's curvature, and points that
+    // fail to project (near the antipodal singularity) break the path.
+    drawGlobalGraticule(ctx, projection, rp, offset, size, resolution) {
+        // Coarser when zoomed out, finer (squares) when zoomed in a bit.
+        const fine = resolution < 5000;
+        const stepLon = fine ? 2 : 20;
+        const stepLat = fine ? 1 : 10;
+        const level = fine ? 1 : 0;
+        const sub = fine ? 0.5 : 2;   // sampling step along each line, degrees
+
+        const toPixel = (lon, lat) => {
+            const c = olProj.fromLonLat([lon, lat], projection);
+            if (!isFinite(c[0]) || !isFinite(c[1])) return null;
+            const px = c[0] / rp - offset[0];
+            const py = offset[1] - c[1] / rp;
+            // Reject points projected wildly outside the canvas (antipode blow-up).
+            if (px < -size[0] || px > 2 * size[0] || py < -size[1] || py > 2 * size[1]) return null;
+            return [px, py];
+        };
+
+        const stroke = (a, b, along) => {
+            ctx.beginPath();
+            let pen = false;
+            for (let v = a; v <= b + 1e-6; v += sub) {
+                const p = along(Math.min(v, b));
+                if (!p) { pen = false; continue; }
+                if (!pen) { ctx.moveTo(p[0], p[1]); pen = true; }
+                else ctx.lineTo(p[0], p[1]);
+            }
+            ctx.stroke();
+        };
+
+        // Meridians
+        for (let lon = -180; lon <= 180; lon += stepLon) {
+            stroke(-89, 89, (lat) => toPixel(lon, lat));
+        }
+        // Parallels
+        for (let lat = -80; lat <= 80; lat += stepLat) {
+            stroke(-180, 180, (lon) => toPixel(lon, lat));
+        }
+
+        // Labels at cell centers
+        for (let lon = -180; lon < 180; lon += stepLon) {
+            for (let lat = -80; lat < 80; lat += stepLat) {
+                const midLon = lon + stepLon / 2;
+                const midLat = lat + stepLat / 2;
+                const p = toPixel(midLon, midLat);
+                if (!p || p[0] < 0 || p[0] > size[0] || p[1] < 0 || p[1] > size[1]) continue;
+                ctx.fillText(this.getGridLabel([midLon, midLat], level), p[0], p[1]);
+            }
+        }
     }
 }
 

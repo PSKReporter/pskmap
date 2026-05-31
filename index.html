@@ -61,6 +61,7 @@
           <button id="go-btn" class="btn btn-sm btn-primary">Go!</button>
           <a href="#" id="show-options" class="ms-2">Display options</a>
           <a href="#" id="permalink" class="ms-2">Permalink</a>
+          <a href="#" id="show-logbook" class="ms-2 d-none">Logbook</a>
         </div>
       </div>
     </div>
@@ -81,6 +82,41 @@
       <div id="popup" class="ol-popup">
         <div id="popup-content"></div>
       </div>
+
+      <!-- Shown only when hide-max is active -->
+      <button id="floating-options" class="d-none" title="Display options">&#9881;</button>
+
+      <!-- Logbook panel -->
+      <div id="logbook-panel" class="d-none">
+        <div class="logbook-header d-flex justify-content-between align-items-center px-3 py-2 border-bottom border-secondary">
+          <div>
+            <strong>Logbook</strong>
+            <span id="logbook-count" class="text-muted ms-2 small"></span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <a href="#" id="adif-download" class="btn btn-sm btn-outline-light">Download ADIF</a>
+            <button id="close-logbook" class="btn-close btn-close-white" aria-label="Close"></button>
+          </div>
+        </div>
+        <div class="logbook-body overflow-auto">
+          <table id="logbook-table" class="table table-dark table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th data-col="time" class="sortable">Time (UTC)</th>
+                <th data-col="sender" class="sortable">Sender</th>
+                <th data-col="senderLoc" class="sortable">S.Loc</th>
+                <th data-col="receiver" class="sortable">Receiver</th>
+                <th data-col="receiverLoc" class="sortable">R.Loc</th>
+                <th data-col="freq" class="sortable">Freq (MHz)</th>
+                <th data-col="mode" class="sortable">Mode</th>
+                <th data-col="snr" class="sortable">SNR</th>
+                <th data-col="dist" class="sortable">Dist</th>
+              </tr>
+            </thead>
+            <tbody id="logbook-tbody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -98,9 +134,9 @@
     </div>
   </footer>
 
-  <!-- Display Options Modal: TODO: Add all the missing options -->
+  <!-- Display Options Modal -->
   <div class="modal fade" id="optionsModal" tabindex="-1" aria-labelledby="optionsModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="optionsModalLabel">Display Options</h5>
@@ -109,17 +145,23 @@
         <div class="modal-body">
           <form id="optionsForm">
             <div class="row">
-              <!-- Column 1: Visibility -->
+              <!-- Column 1: Visibility & Behavior -->
               <div class="col-md-6">
-                <h5>Visibility</h5>
+                <h6 class="text-muted text-uppercase fw-bold mb-2">Map Overlays</h6>
                 <div class="form-check mb-2">
-                  <input class="form-check-input" type="checkbox" id="show-grid" checked>
+                  <input class="form-check-input" type="checkbox" id="show-grid">
                   <label class="form-check-label" for="show-grid">Show Maidenhead Grid</label>
                 </div>
                 <div class="form-check mb-2">
                   <input class="form-check-input" type="checkbox" id="show-night" checked>
                   <label class="form-check-label" for="show-night">Show Night Shadow</label>
                 </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="night-for-spot">
+                  <label class="form-check-label" for="night-for-spot">Shadow time is spot time</label>
+                </div>
+
+                <h6 class="text-muted text-uppercase fw-bold mb-2 mt-3">Stations</h6>
                 <div class="form-check mb-2">
                   <input class="form-check-input" type="checkbox" id="hide-faint">
                   <label class="form-check-label" for="hide-faint">Hide faint monitors</label>
@@ -129,9 +171,19 @@
                   <label class="form-check-label" for="hide-no-reports">Hide monitors if no reports</label>
                 </div>
                 <div class="form-check mb-2">
-                  <input class="form-check-input" type="checkbox" id="show-snr">
-                  <label class="form-check-label" for="show-snr">Show SNR</label>
+                  <input class="form-check-input" type="checkbox" id="show-tx">
+                  <label class="form-check-label" for="show-tx">Show unseen transmitters</label>
                 </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="suppress-bad-qrg">
+                  <label class="form-check-label" for="suppress-bad-qrg">Suppress bad QRG</label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="show-snr">
+                  <label class="form-check-label" for="show-snr">Show SNR on markers</label>
+                </div>
+
+                <h6 class="text-muted text-uppercase fw-bold mb-2 mt-3">Lines &amp; Labels</h6>
                 <div class="form-check mb-2">
                   <input class="form-check-input" type="checkbox" id="hide-lines">
                   <label class="form-check-label" for="hide-lines">Hide connecting lines</label>
@@ -141,17 +193,31 @@
                   <label class="form-check-label" for="lines-always">Show connecting lines always</label>
                 </div>
                 <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="hide-time">
+                  <label class="form-check-label" for="hide-time">Hide seen times</label>
+                </div>
+
+                <h6 class="text-muted text-uppercase fw-bold mb-2 mt-3">Interface</h6>
+                <div class="form-check mb-2">
                   <input class="form-check-input" type="checkbox" id="no-auto-pan">
                   <label class="form-check-label" for="no-auto-pan">No auto pan/zoom</label>
                 </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="hide-stats">
+                  <label class="form-check-label" for="hide-stats">Hide statistics bar</label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="hide-max">
+                  <label class="form-check-label" for="hide-max">Hide everything but the map</label>
+                </div>
               </div>
 
-              <!-- Column 2: Markers & Map -->
+              <!-- Column 2: Markers & Map Settings -->
               <div class="col-md-6">
-                <h5>Markers</h5>
+                <h6 class="text-muted text-uppercase fw-bold mb-2">Markers</h6>
                 <div class="mb-3">
                   <label for="tx-filter" class="form-label">Transmitters</label>
-                  <select class="form-select" id="tx-filter">
+                  <select class="form-select form-select-sm" id="tx-filter">
                     <option value="all" selected>Show all</option>
                     <option value="lotw-eqsl">Show LoTW/eQSL</option>
                     <option value="lotw">Show LoTW</option>
@@ -160,7 +226,7 @@
                 </div>
                 <div class="mb-3">
                   <label for="worked-timeout" class="form-label">Worked markers timeout</label>
-                  <select class="form-select" id="worked-timeout">
+                  <select class="form-select form-select-sm" id="worked-timeout">
                     <option value="none" selected>None</option>
                     <option value="1w">1 week</option>
                     <option value="2w">2 weeks</option>
@@ -173,23 +239,29 @@
                 </div>
                 <div class="mb-3">
                   <label for="sparkly-minutes" class="form-label">Minutes for Sparkly markers</label>
-                  <input type="number" class="form-control" id="sparkly-minutes" value="10" min="1" max="60">
+                  <input type="number" class="form-control form-control-sm" id="sparkly-minutes" value="10" min="1" max="60">
                 </div>
 
-                <hr>
-                <h5>Map & Units</h5>
+                <h6 class="text-muted text-uppercase fw-bold mb-2 mt-3">Map &amp; Units</h6>
+                <div class="mb-3">
+                  <label for="projection" class="form-label">Map projection</label>
+                  <select class="form-select form-select-sm" id="projection">
+                    <option value="mercator" selected>Mercator</option>
+                    <option value="aeqd">Azimuthal equidistant</option>
+                    <option value="laea">Azimuthal equal-area</option>
+                  </select>
+                </div>
                 <div class="mb-3">
                   <label for="dist-unit" class="form-label">Distance units</label>
-                  <select class="form-select" id="dist-unit">
+                  <select class="form-select form-select-sm" id="dist-unit">
                     <option value="auto" selected>Automatic</option>
                     <option value="miles">Miles</option>
                     <option value="km">Kilometers</option>
                   </select>
                 </div>
                 <div class="mb-3">
-                  <label for="night-darkness" class="form-label">Night shadow darkness (0-1)</label>
-                  <input type="number" class="form-control" id="night-darkness" value="0.65" min="0" max="1"
-                    step="0.05">
+                  <label for="night-darkness" class="form-label">Night shadow darkness (0–1)</label>
+                  <input type="number" class="form-control form-control-sm" id="night-darkness" value="0.65" min="0" max="1" step="0.05">
                 </div>
               </div>
             </div>

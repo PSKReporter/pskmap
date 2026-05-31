@@ -18,11 +18,26 @@ class SunSource extends ImageCanvasSource {
         this.obscureFactor = options.obscureFactor || 0.65;
         this.getCurrentTime = options.getCurrentTime || (() => Date.now());
 
+        // Per-pixel inverse projection: 0 = Web Mercator, 1 = azimuthal
+        // equidistant, 2 = Lambert azimuthal equal-area. The azimuthal
+        // variants are centered on (centerLat, centerLon), in radians.
+        this.projType = options.projType || 0;
+        this.centerLat = (options.centerLat || 0) * Math.PI / 180;
+        this.centerLon = (options.centerLon || 0) * Math.PI / 180;
+        this.earthRadius = options.earthRadius || 6378137;
+
         this.initializeWebGL();
     }
 
     setObscureFactor(factor) {
         this.obscureFactor = factor;
+        this.changed();
+    }
+
+    setProjectionParams(projType, centerLatDeg, centerLonDeg) {
+        this.projType = projType;
+        this.centerLat = (centerLatDeg || 0) * Math.PI / 180;
+        this.centerLon = (centerLonDeg || 0) * Math.PI / 180;
         this.changed();
     }
 
@@ -55,22 +70,53 @@ class SunSource extends ImageCanvasSource {
             uniform float u_fDeclination;
             uniform float u_fLocalTimeRad;
             uniform float u_obscureFactor;
+            uniform float u_projType;   // 0 mercator, 1 aeqd, 2 laea
+            uniform float u_lat0;       // azimuthal center, radians
+            uniform float u_lon0;
+            uniform float u_radius;     // earth radius, metres
 
             const float fTwilight = 0.018;
+            const float PI_2 = 1.57079632679;
 
             // Simplified Mercator to Lat/Lon
             float yToLat(float y) {
-                return 2.0 * atan(exp(y)) - 1.57079632679;
+                return 2.0 * atan(exp(y)) - PI_2;
             }
 
             void main() {
-                // Map v_texCoord to actual coordinate in extent
+                // Map v_texCoord to actual coordinate in the view projection extent.
                 float x = u_extent.x + v_texCoord.x * (u_extent.z - u_extent.x);
                 float y = u_extent.y + v_texCoord.y * (u_extent.w - u_extent.y);
 
-                // Convert EPSG:3857 to Lat/Lon (approximate)
-                float lon = x / 6378137.0;
-                float lat = yToLat(y / 6378137.0);
+                float lat;
+                float lon;
+                if (u_projType < 0.5) {
+                    // Web Mercator inverse.
+                    lon = x / u_radius;
+                    lat = yToLat(y / u_radius);
+                } else {
+                    // Azimuthal inverse, centered on (u_lat0, u_lon0).
+                    float rho = sqrt(x * x + y * y);
+                    if (rho < 1.0) {
+                        lat = u_lat0;
+                        lon = u_lon0;
+                    } else {
+                        float c;
+                        if (u_projType < 1.5) {
+                            c = rho / u_radius;                              // aeqd
+                        } else {
+                            c = 2.0 * asin(clamp(rho / (2.0 * u_radius), -1.0, 1.0)); // laea
+                        }
+                        if (c > 3.14159265) {
+                            // Beyond the antipode there is no ground to shade.
+                            discard;
+                        }
+                        float sinc = sin(c);
+                        float cosc = cos(c);
+                        lat = asin(clamp(cosc * sin(u_lat0) + (y * sinc * cos(u_lat0)) / rho, -1.0, 1.0));
+                        lon = u_lon0 + atan(x * sinc, rho * cos(u_lat0) * cosc - y * sin(u_lat0) * sinc);
+                    }
+                }
 
                 float fSolarTimeRad = u_fLocalTimeRad + u_fEquationRad + lon;
                 float cc = cos(u_fDeclination) * cos(lat);
@@ -148,6 +194,10 @@ class SunSource extends ImageCanvasSource {
         gl.uniform1f(gl.getUniformLocation(this.program, "u_fDeclination"), situation.fDeclination);
         gl.uniform1f(gl.getUniformLocation(this.program, "u_fLocalTimeRad"), situation.fLocalTimeRad);
         gl.uniform1f(gl.getUniformLocation(this.program, "u_obscureFactor"), this.obscureFactor);
+        gl.uniform1f(gl.getUniformLocation(this.program, "u_projType"), this.projType);
+        gl.uniform1f(gl.getUniformLocation(this.program, "u_lat0"), this.centerLat);
+        gl.uniform1f(gl.getUniformLocation(this.program, "u_lon0"), this.centerLon);
+        gl.uniform1f(gl.getUniformLocation(this.program, "u_radius"), this.earthRadius);
 
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
